@@ -1,0 +1,1 @@
+include ':app', ':ssdp-client', ':sonos-controller'
