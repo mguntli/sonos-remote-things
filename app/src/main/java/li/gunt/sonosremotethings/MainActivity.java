@@ -17,6 +17,7 @@ import com.google.android.things.contrib.driver.ssd1306.Ssd1306;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.GpioCallback;
 import com.google.android.things.pio.PeripheralManagerService;
+import com.google.android.things.contrib.driver.button.Button;
 import com.vmichalak.sonoscontroller.PlayState;
 import com.vmichalak.sonoscontroller.SonosDevice;
 import com.vmichalak.sonoscontroller.SonosDiscovery;
@@ -32,6 +33,7 @@ public class MainActivity extends Activity {
     private static final String BUTTON_VOLUME_DOWN = "GPIO4_IO21";
     private static final String BUTTON_PRESET1 = "GPIO4_IO22";
     private static final String BUTTON_PRESET2 = "GPIO4_IO23";
+    private static final long BUTTON_DEBOUNCE_DELAY_MS = 50;
 
     // Sonos speaker zone to control
     private static final String SONOS_ZONE = "Kitchen";
@@ -41,11 +43,12 @@ public class MainActivity extends Activity {
 
     private Ssd1306 screen;
     private SonosDevice sonosDevice;
-    private Gpio buttonPlayPause;
-    private Gpio buttonVolumeUp;
-    private Gpio buttonVolumeDown;
-    private Gpio buttonPreset1;
-    private Gpio buttonPreset2;
+
+    private Button buttonPlayPause;
+    private Button buttonVolumeUp;
+    private Button buttonVolumeDown;
+    private Button buttonPreset1;
+    private Button buttonPreset2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -228,52 +231,50 @@ public class MainActivity extends Activity {
     }
 
     private void setupButtons() {
-        PeripheralManagerService pioService = new PeripheralManagerService();
+        Log.i(TAG, "Configuring GPIO pins");
         try {
-            Log.i(TAG, "Configuring GPIO pins");
-
-            buttonPlayPause = pioService.openGpio(BUTTON_PLAY_PAUSE);
-            setupButton(buttonPlayPause, new GpioCallback() {
+            setupButton(buttonPlayPause, BUTTON_PLAY_PAUSE, new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    onPlayPauseClicked();
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    if (pressed) {
+                        onPlayPauseClicked();
+                    }
                 }
             });
 
-            buttonVolumeUp = pioService.openGpio(BUTTON_VOLUME_UP);
-            setupButton(buttonVolumeUp, new GpioCallback() {
+            setupButton(buttonVolumeUp, BUTTON_VOLUME_UP, new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    onVolumeUpClicked();
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    if (pressed) {
+                        onVolumeUpClicked();
+                    }
                 }
             });
 
-            buttonVolumeDown = pioService.openGpio(BUTTON_VOLUME_DOWN);
-            setupButton(buttonVolumeDown, new GpioCallback() {
+            setupButton(buttonVolumeDown, BUTTON_VOLUME_DOWN, new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    onVolumeDownClicked();
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    if (pressed) {
+                        onVolumeDownClicked();
+                    }
                 }
             });
 
-            buttonPreset1 = pioService.openGpio(BUTTON_PRESET1);
-            setupButton(buttonPreset1, new GpioCallback() {
+            setupButton(buttonPreset1, BUTTON_PRESET1, new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    onPreset1Clicked();
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    if (pressed) {
+                        onPreset1Clicked();
+                    }
                 }
             });
 
-            buttonPreset2 = pioService.openGpio(BUTTON_PRESET2);
-            setupButton(buttonPreset2, new GpioCallback() {
+            setupButton(buttonPreset2, BUTTON_PRESET2, new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    onPreset2Clicked();
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    if (pressed) {
+                        onPreset2Clicked();
+                    }
                 }
             });
         } catch (IOException e) {
@@ -281,14 +282,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void setupButton(Gpio button, GpioCallback callback) throws IOException {
-        // Initialize the pin as an input
-        button.setDirection(Gpio.DIRECTION_IN);
-        // High voltage is considered active
-        button.setActiveType(Gpio.ACTIVE_HIGH);
-        // Register for rising edge when button has been pressed
-        button.setEdgeTriggerType(Gpio.EDGE_RISING);
-        button.registerGpioCallback(callback);
+    private void setupButton(Button button, String pin, Button.OnButtonEventListener buttonEventListener) throws IOException {
+        button = new Button(pin, Button.LogicState.PRESSED_WHEN_HIGH);
+        button.setDebounceDelay(BUTTON_DEBOUNCE_DELAY_MS);
+        button.setOnButtonEventListener(buttonEventListener);
     }
 
     private List<SonosDevice> discoverSonosDevices() {
