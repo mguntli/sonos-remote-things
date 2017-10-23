@@ -14,9 +14,6 @@ import java.util.List;
 
 import com.google.android.things.contrib.driver.ssd1306.BitmapHelper;
 import com.google.android.things.contrib.driver.ssd1306.Ssd1306;
-import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.GpioCallback;
-import com.google.android.things.pio.PeripheralManagerService;
 import com.google.android.things.contrib.driver.button.Button;
 import com.vmichalak.sonoscontroller.PlayState;
 import com.vmichalak.sonoscontroller.SonosDevice;
@@ -125,12 +122,14 @@ public class MainActivity extends Activity {
     }
 
     public void onPreset1Clicked() {
-        // fill in your favorite streaming URI and player configuration
+        // load the Google Play Music playlist (requires a valid Google Play Music subscription)
         try {
             if (sonosDevice != null) {
-                sonosDevice.playUri("x-rincon-mp3radio://www.charivari.de/webradio/955-charivari-stream-webradio.m3u", null);
-                sonosDevice.setVolume(35);
-                updateView(SONOS_ZONE, "Charivari");
+                // Google Play Music Playlist: https://play.google.com/music/r/m/Lrujyowx2f6n5bot3lqtjok2n2e?t=Pasta_bei_Mario
+                // Get the playlist URI from UPNP favorites
+                sonosDevice.playUri("x-sonosapi-radio:vy_wPybY9vRCoaCMySC_D6Ol9WJ1aoH97kTmNIzBZ667Frppf2koUq7ZH7OJ9bXx41s_K0RZBSA?sid=151&flags=8300&sn=3", null);
+                sonosDevice.setVolume(30);
+                updateView(SONOS_ZONE, "Pasta at Mario");
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -140,7 +139,7 @@ public class MainActivity extends Activity {
     }
 
     public void onPreset2Clicked() {
-        // fill in your favorite streaming URI and player configuration
+        // load the Swiss Pop radio stream
         try {
             if (sonosDevice != null) {
                 sonosDevice.playUri("x-rincon-mp3radio://www.radioswisspop.ch/live/aacp.m3u", null);
@@ -170,7 +169,7 @@ public class MainActivity extends Activity {
     private void drawView() {
         if (screen != null) {
             Bitmap newContent = generateBitmapFromView();
-            BitmapHelper.setBmpData(screen, 0, 0, newContent, false);
+            BitmapHelper.setBmpData(screen, 0, 0, newContent, true);
         }
     }
 
