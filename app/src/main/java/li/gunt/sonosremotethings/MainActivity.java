@@ -67,12 +67,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        destroyButtons();
         destroyOledDisplay();
     }
 
     public void onPlayPauseClicked() {
         try {
             if (sonosDevice != null) {
+                // toggle the state
                 if (sonosDevice.getPlayState() == PlayState.PLAYING) {
                     sonosDevice.pause();
                 }
@@ -122,11 +125,11 @@ public class MainActivity extends Activity {
     }
 
     public void onPreset1Clicked() {
-        // load the Google Play Music playlist (requires a valid Google Play Music subscription)
+        // predefined example to load the Google Play Music playlist (requires a valid Google Play Music subscription)
         try {
             if (sonosDevice != null) {
                 // Google Play Music Playlist: https://play.google.com/music/r/m/Lrujyowx2f6n5bot3lqtjok2n2e?t=Pasta_bei_Mario
-                // Get the playlist URI from UPNP favorites
+                // Get the playlist URI from Sonos UPnP library
                 sonosDevice.playUri("x-sonosapi-radio:vy_wPybY9vRCoaCMySC_D6Ol9WJ1aoH97kTmNIzBZ667Frppf2koUq7ZH7OJ9bXx41s_K0RZBSA?sid=151&flags=8300&sn=3", null);
                 sonosDevice.setVolume(30);
                 updateView(SONOS_ZONE, "Pasta at Mario");
@@ -139,7 +142,7 @@ public class MainActivity extends Activity {
     }
 
     public void onPreset2Clicked() {
-        // load the Swiss Pop radio stream
+        // predefined example to load the Swiss Pop radio stream
         try {
             if (sonosDevice != null) {
                 sonosDevice.playUri("x-rincon-mp3radio://www.radioswisspop.ch/live/aacp.m3u", null);
@@ -207,6 +210,22 @@ public class MainActivity extends Activity {
         }
     }
 
+    private List<SonosDevice> discoverSonosDevices() {
+        List<SonosDevice> devices = null;
+        try {
+            devices = SonosDiscovery.discover();
+            for (SonosDevice device : devices) {
+                Log.d(TAG, "Found Sonos " + device.getZoneName() + " with IP " + device.getSpeakerInfo().getIpAddress());
+            }
+
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to discover Sonos devices", e);
+        } catch (SonosControllerException e) {
+            Log.e(TAG, "Sonos Controller Exception", e);
+        }
+        return devices;
+    }
+
     private void setupOledDisplay() {
         try {
             Ssd1306 screen = new Ssd1306(I2C_BUS);
@@ -232,7 +251,7 @@ public class MainActivity extends Activity {
     private void setupButtons() {
         Log.i(TAG, "Configuring GPIO pins");
         try {
-            setupButton(buttonPlayPause, BUTTON_PLAY_PAUSE, new Button.OnButtonEventListener() {
+            buttonPlayPause = setupButton(BUTTON_PLAY_PAUSE, new Button.OnButtonEventListener() {
                 @Override
                 public void onButtonEvent(Button button, boolean pressed) {
                     if (pressed) {
@@ -241,7 +260,7 @@ public class MainActivity extends Activity {
                 }
             });
 
-            setupButton(buttonVolumeUp, BUTTON_VOLUME_UP, new Button.OnButtonEventListener() {
+            buttonVolumeUp = setupButton(BUTTON_VOLUME_UP, new Button.OnButtonEventListener() {
                 @Override
                 public void onButtonEvent(Button button, boolean pressed) {
                     if (pressed) {
@@ -250,7 +269,7 @@ public class MainActivity extends Activity {
                 }
             });
 
-            setupButton(buttonVolumeDown, BUTTON_VOLUME_DOWN, new Button.OnButtonEventListener() {
+            buttonVolumeDown = setupButton(BUTTON_VOLUME_DOWN, new Button.OnButtonEventListener() {
                 @Override
                 public void onButtonEvent(Button button, boolean pressed) {
                     if (pressed) {
@@ -259,7 +278,7 @@ public class MainActivity extends Activity {
                 }
             });
 
-            setupButton(buttonPreset1, BUTTON_PRESET1, new Button.OnButtonEventListener() {
+            buttonPreset1 = setupButton(BUTTON_PRESET1, new Button.OnButtonEventListener() {
                 @Override
                 public void onButtonEvent(Button button, boolean pressed) {
                     if (pressed) {
@@ -268,7 +287,7 @@ public class MainActivity extends Activity {
                 }
             });
 
-            setupButton(buttonPreset2, BUTTON_PRESET2, new Button.OnButtonEventListener() {
+            buttonPreset2 = setupButton(BUTTON_PRESET2, new Button.OnButtonEventListener() {
                 @Override
                 public void onButtonEvent(Button button, boolean pressed) {
                     if (pressed) {
@@ -281,25 +300,23 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void setupButton(Button button, String pin, Button.OnButtonEventListener buttonEventListener) throws IOException {
-        button = new Button(pin, Button.LogicState.PRESSED_WHEN_HIGH);
+    private Button setupButton(String pin, Button.OnButtonEventListener buttonEventListener) throws IOException {
+        Button button = new Button(pin, Button.LogicState.PRESSED_WHEN_HIGH);
         button.setDebounceDelay(BUTTON_DEBOUNCE_DELAY_MS);
         button.setOnButtonEventListener(buttonEventListener);
+        return button;
     }
 
-    private List<SonosDevice> discoverSonosDevices() {
-        List<SonosDevice> devices = null;
+    private void destroyButtons() {
         try {
-            devices = SonosDiscovery.discover();
-            for (SonosDevice device : devices) {
-                Log.d(TAG, "Found Sonos " + device.getZoneName() + " with IP " + device.getSpeakerInfo().getIpAddress());
-            }
-
+            buttonPlayPause.close();
+            buttonVolumeUp.close();
+            buttonVolumeDown.close();
+            buttonPreset1.close();
+            buttonPreset2.close();
         } catch (IOException e) {
-            Log.e(TAG, "Failed to discover Sonos devices", e);
-        } catch (SonosControllerException e) {
-            Log.e(TAG, "Sonos Controller Exception", e);
+            e.printStackTrace();
         }
-        return devices;
+
     }
 }
