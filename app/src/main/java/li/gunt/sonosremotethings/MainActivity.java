@@ -2,12 +2,12 @@ package li.gunt.sonosremotethings;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.util.Log;
 import android.os.Bundle;
 import android.os.StrictMode;
-import android.view.View;
-import android.widget.AbsoluteLayout;
-import android.widget.TextView;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,6 +20,12 @@ import com.vmichalak.sonoscontroller.SonosDevice;
 import com.vmichalak.sonoscontroller.SonosDiscovery;
 import com.vmichalak.sonoscontroller.exception.SonosControllerException;
 
+import static android.graphics.Bitmap.Config.ARGB_8888;
+
+/**
+ * Rapid prototype for a Android Things based Sonos remote control.
+ * Customize the hardware mapping based on your schematics - see imx6ul_schematics.fzz
+ */
 public class MainActivity extends Activity {
     private static final String TAG = MainActivity.class.getSimpleName();
 
@@ -34,9 +40,7 @@ public class MainActivity extends Activity {
 
     // Sonos speaker zone to control
     private static final String SONOS_ZONE = "Kitchen";
-
-    private TextView textLine1;
-    private TextView textLine2;
+    private static final int VOLUME_STEP = 5;
 
     private Ssd1306 screen;
     private SonosDevice sonosDevice;
@@ -51,14 +55,13 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // OLED display is our primary view
-        setupOledDisplay();
-        bindView();
+        // show startup text
+        setupSSD1306OledDisplay();
         updateView("Android-Remote-Things", "connecting..");
 
         // allow network access in main thread to keep the example simple
         allowNetworkInMainThread();
-        setupSonosSpeaker(SONOS_ZONE);
+        setupSonosSpeaker();
 
         // configure buttons at the end to avoid interaction before everything is setup
         setupButtons();
@@ -72,7 +75,7 @@ public class MainActivity extends Activity {
         destroyOledDisplay();
     }
 
-    public void onPlayPauseClicked() {
+    private void onPlayPauseClicked() {
         try {
             if (sonosDevice != null) {
                 // toggle the state
@@ -84,64 +87,58 @@ public class MainActivity extends Activity {
                 }
             }
             else {
-                // Alternate function: reconnect to Sonos speaker
-                setupSonosSpeaker(SONOS_ZONE);
+                // Alternate function: reconnect to Sonos speaker if discovery at startup failed
+                setupSonosSpeaker();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (SonosControllerException e) {
-            e.printStackTrace();
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Sonos play-pause command failed", e);
         }
     }
 
-    public void onVolumeUpClicked() {
+    private void onVolumeUpClicked() {
         try {
             if (sonosDevice != null) {
-                int currentVolume = sonosDevice.getVolume();
-                if (currentVolume < 100) {
-                    sonosDevice.setVolume(currentVolume + 1);
+                int volume = sonosDevice.getVolume() + VOLUME_STEP;
+                if (volume > 100) {
+                    volume = 100;
                 }
+                sonosDevice.setVolume(volume);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (SonosControllerException e) {
-            e.printStackTrace();
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Sonos volume up command failed", e);
         }
     }
 
-    public void onVolumeDownClicked() {
+    private void onVolumeDownClicked() {
         try {
             if (sonosDevice != null) {
-                int currentVolume = sonosDevice.getVolume();
-                if (currentVolume > 0) {
-                    sonosDevice.setVolume(currentVolume - 1);
+                int volume = sonosDevice.getVolume() - VOLUME_STEP;
+                if (volume < 0) {
+                    volume = 0;
                 }
+                sonosDevice.setVolume(volume);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (SonosControllerException e) {
-            e.printStackTrace();
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Sonos volume down command failed", e);
         }
     }
 
-    public void onPreset1Clicked() {
+    private void onPreset1Clicked() {
         // predefined example to load the Google Play Music playlist (requires a valid Google Play Music subscription)
         try {
             if (sonosDevice != null) {
                 // Google Play Music Playlist: https://play.google.com/music/r/m/Lrujyowx2f6n5bot3lqtjok2n2e?t=Pasta_bei_Mario
-                // Get the playlist URI from Sonos UPnP library
+                // Get the playlist URI from Sonos UPnP command line utility
                 sonosDevice.playUri("x-sonosapi-radio:vy_wPybY9vRCoaCMySC_D6Ol9WJ1aoH97kTmNIzBZ667Frppf2koUq7ZH7OJ9bXx41s_K0RZBSA?sid=151&flags=8300&sn=3", null);
                 sonosDevice.setVolume(30);
                 updateView(SONOS_ZONE, "Pasta at Mario");
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (SonosControllerException e) {
-            e.printStackTrace();
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Sonos preset 1 command failed", e);
         }
     }
 
-    public void onPreset2Clicked() {
+    private void onPreset2Clicked() {
         // predefined example to load the Swiss Pop radio stream
         try {
             if (sonosDevice != null) {
@@ -149,64 +146,34 @@ public class MainActivity extends Activity {
                 sonosDevice.setVolume(20);
                 updateView(SONOS_ZONE, "Swiss Pop");
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (SonosControllerException e) {
-            e.printStackTrace();
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Sonos preset 2 command failed", e);
         }
-    }
-
-    private void bindView() {
-        View view = getLayoutInflater().inflate(R.layout.activity_main, null);
-        setContentView(view);
-        textLine1 = findViewById(R.id.mainActivityLine1);
-        textLine2 = findViewById(R.id.mainActivityLine2);
-    }
-
-    private void updateView(String line1, String line2) {
-        textLine1.setText(line1);
-        textLine2.setText(line2);
-        drawView();
-    }
-
-    private void drawView() {
-        if (screen != null) {
-            Bitmap newContent = generateBitmapFromView();
-            BitmapHelper.setBmpData(screen, 0, 0, newContent, true);
-        }
-    }
-
-    private Bitmap generateBitmapFromView() {
-        // we use the XML layout to define our screen content (activity_main.xml) and convert it to a bitmap
-        AbsoluteLayout layout = findViewById(R.id.mainActivityScreen);
-        layout.setDrawingCacheEnabled(true);
-        layout.buildDrawingCache();
-        return layout.getDrawingCache();
     }
 
     private void allowNetworkInMainThread() {
+        // network operation in main thread are not recommended, since the activity will be blocked an cannot respond to user inputs
+        // however, we are create here a rapid prototype and don't care ;-)
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
     }
 
-    private void setupSonosSpeaker(String zoneName) {
+    private void setupSonosSpeaker() {
         List<SonosDevice> availableDevices = discoverSonosDevices();
         for (SonosDevice device : availableDevices) {
             try {
-                if (device.getZoneName().equals(zoneName)) {
+                if (device.getZoneName().equals(SONOS_ZONE)) {
                     sonosDevice = device;
                     break;
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (SonosControllerException e) {
-                e.printStackTrace();
+            } catch (IOException | SonosControllerException e) {
+                Log.e(TAG, "Failed to setup Sonos speaker", e);
             }
         }
         if (sonosDevice != null) {
-            updateView(zoneName, "connected!");
+            updateView(SONOS_ZONE, "connected!");
         } else {
-            updateView("Connection error", "> to repeat");
+            updateView("Connection error", ">| to repeat");
         }
     }
 
@@ -217,23 +184,19 @@ public class MainActivity extends Activity {
             for (SonosDevice device : devices) {
                 Log.d(TAG, "Found Sonos " + device.getZoneName() + " with IP " + device.getSpeakerInfo().getIpAddress());
             }
-
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to discover Sonos devices", e);
-        } catch (SonosControllerException e) {
-            Log.e(TAG, "Sonos Controller Exception", e);
+        } catch (IOException | SonosControllerException e) {
+            Log.e(TAG, "Failed to discover Sonos speakers", e);
         }
         return devices;
     }
 
-    private void setupOledDisplay() {
+    private void setupSSD1306OledDisplay() {
         try {
-            Ssd1306 screen = new Ssd1306(I2C_BUS);
-            screen.setDisplayOn(true);
+            screen = new Ssd1306(I2C_BUS);
         } catch (IOException e) {
-            Log.e(TAG, "Error while opening screen", e);
+            Log.e(TAG, "Error while opening SSD1306", e);
         }
-        Log.d(TAG, "OLED screen activity created");
+        Log.d(TAG, "SSD1306 screen created");
     }
 
     private void destroyOledDisplay() {
@@ -248,7 +211,33 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updateView(String line1, String line2) {
+        if (screen != null) {
+            Bitmap newContent = generateBitmapFromView(line1, line2);
+            screen.clearPixels();
+            BitmapHelper.setBmpData(screen, 0, 0, newContent, true);
+            try {
+                screen.show();
+            } catch (IOException e) {
+                Log.e(TAG, "Error updating SSD1306", e);
+            }
+        }
+    }
+
+    private Bitmap generateBitmapFromView(String line1, String line2) {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(24f);
+        paint.setColor(Color.WHITE);
+        paint.setTextAlign(Paint.Align.LEFT);
+        Bitmap textAsBitmap = Bitmap.createBitmap(screen.getLcdWidth(), screen.getLcdHeight(), ARGB_8888);
+        Canvas canvas = new Canvas(textAsBitmap);
+        canvas.drawText(line1, 0, 32, paint);
+        canvas.drawText(line2, 0, 64, paint);
+        return textAsBitmap;
+    }
+
     private void setupButtons() {
+        // use the button driver to debounce the signal in software and register callbacks
         Log.i(TAG, "Configuring GPIO pins");
         try {
             buttonPlayPause = setupButton(BUTTON_PLAY_PAUSE, new Button.OnButtonEventListener() {
